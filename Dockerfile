@@ -1,6 +1,10 @@
 # Dockerfile  (replace your old one)
 FROM python:3.12-slim
 
+# add curl (needed by startup.sh)
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # 1) Basic best-practice flags
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
