@@ -1,0 +1,43 @@
+name: CI-CD
+on: [push]
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REPO: hiregenius-backend
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: docker/setup-buildx-action@v3
+    - run: docker build -t $ECR_REPO:$IMAGE_TAG .
+
+    - uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - run: |
+        aws ecr get-login-password --region $AWS_REGION \
+        | docker login --username AWS --password-stdin \
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com
+        docker tag $ECR_REPO:$IMAGE_TAG \
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
+        docker push \
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
+
+    - uses: appleboy/ssh-action@v1
+      with:
+        host:     ${{ secrets.EC2_HOST }}
+        username: ec2-user
+        key:      ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
+          docker stop backend || true && docker rm backend || true
+          docker run -d --name backend -p 80:8000 \
+            -e MONGO_URL='${{ secrets.MONGO_URL }}' \
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
