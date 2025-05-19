@@ -2,7 +2,7 @@ name: CI-CD
 on: [push]
 
 env:
-  AWS_REGION: ap-south-1
+  AWS_REGION: us-east-1
   ECR_REPO: hiregenius-backend
   IMAGE_TAG: ${{ github.sha }}
 
