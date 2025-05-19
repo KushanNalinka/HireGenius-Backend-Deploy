@@ -1,0 +1,11 @@
+# never copy these into the image
+.env
+env
+__pycache__
+*.pyc
+*.pyo
+.idea
+.vscode
+.git
+.gitignore
+uploads

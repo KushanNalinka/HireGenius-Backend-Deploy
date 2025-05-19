@@ -1,2 +1,4 @@
 env
 local_model/model.safetensors
+__pycache__/
+*.pyc

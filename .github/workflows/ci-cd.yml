@@ -61,6 +61,12 @@ jobs:
       # 2) Setup Docker Buildx
       - uses: docker/setup-buildx-action@v3
 
+      - name: Free disk space on runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android $HOME/hostedtoolcache
+          docker system prune -af --volumes
+
+
       # 3) Build the Docker image
       - name: Build Docker image
         run: docker build -t $ECR_REPO:$IMAGE_TAG .
