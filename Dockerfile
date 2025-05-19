@@ -1,24 +1,23 @@
-# Dockerfile  (replace your old one)
 FROM python:3.12-slim
 
+# tools we need
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      curl gunicorn \
+        curl \
     && rm -rf /var/lib/apt/lists/*
 
-
-# 1) Basic best-practice flags
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# 2) Install deps first → layer is cached
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# --- install Python deps (Flask must be here) ---
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --upgrade pip \
+ && pip install --no-cache-dir -r /tmp/requirements.txt
+# ------------------------------------------------
 
-# 3) Copy only code & models after deps
 WORKDIR /code
-COPY app          ./app
-COPY local_model  ./local_model
-COPY startup.sh   .
+COPY app         ./app
+COPY local_model ./local_model
+COPY startup.sh  .
 
 RUN chmod +x startup.sh
 EXPOSE 8000
