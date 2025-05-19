@@ -11,10 +11,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 # ---------- Python packages ----------
-#  requirements.txt MUST contain Flask and gunicorn
+# ---------- Python packages ----------
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install --upgrade pip \
- && pip install --no-cache-dir -r /tmp/requirements.txt
+ && pip install --no-cache-dir -r /tmp/requirements.txt \
+ && pip install --no-cache-dir --upgrade numpy pandas
+
 
 # ---------- Copy application ----------
 WORKDIR /code
