@@ -25,5 +25,5 @@ COPY app.py .
 EXPOSE 5000
 
 # ---- start with Gunicorn ----
-CMD ["gunicorn", "-b", "0.0.0.0:5000", "wsgi:app"]
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "wsgi:app"]
 
