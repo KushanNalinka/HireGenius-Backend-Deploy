@@ -20,4 +20,5 @@ COPY startup.sh .
 RUN sed -i 's/\r$//' startup.sh && chmod +x startup.sh
 
 EXPOSE 8000
-CMD ["/bin/bash", "startup.sh"]   # always run through bash
+# final command – JSON array, no extra quotes
+ENTRYPOINT ["/bin/bash", "./startup.sh"]
