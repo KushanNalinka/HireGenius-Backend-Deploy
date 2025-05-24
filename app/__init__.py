@@ -96,7 +96,7 @@ def create_app():
     CORS(app)
 
     # connect to Mongo using the secret
-    mongo_uri = os.getenv("MONGO_URI")
+    mongo_uri = os.getenv("MONGO_URL")
     if not mongo_uri:
         raise RuntimeError("MONGO_URI not set. Add it to .env (local) "
                            "or pass it as an environment variable in production.")
