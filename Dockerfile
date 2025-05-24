@@ -12,13 +12,10 @@ RUN pip install --upgrade pip \
  && pip install --no-cache-dir sentence-transformers transformers
 
 WORKDIR /code
-
-COPY app        ./app
-COPY startup.sh .
-
-# ----- strip any stray CR byte & ensure exec permission -----
-RUN sed -i 's/\r$//' startup.sh && chmod +x startup.sh
+COPY app ./app
 
 EXPOSE 8000
-# final command – JSON array, no extra quotes
-ENTRYPOINT ["/bin/bash", "./startup.sh"]
+
+# ---- run Gunicorn directly (no shell script) ----
+ENTRYPOINT ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "1", "--preload", "--timeout", "120", "app:create_app()"]
+
