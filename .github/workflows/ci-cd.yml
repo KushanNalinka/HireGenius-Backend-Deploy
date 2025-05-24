@@ -43,80 +43,144 @@
 #             ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
 
 
+# name: CI-CD
+# on: [push]
+
+# env:
+#   AWS_REGION: us-east-1
+#   ECR_REPO: hiregenius-backend
+#   IMAGE_TAG: ${{ github.sha }}
+
+# jobs:
+#   build-deploy:
+#     runs-on: ubuntu-latest
+#     steps:
+#       # 1) Checkout your code (including Dockerfile at repo root)
+#       - uses: actions/checkout@v4
+
+#       # 2) Setup Docker Buildx
+#       - uses: docker/setup-buildx-action@v3
+
+#       - name: Free disk space on runner
+#         run: |
+#           sudo rm -rf /usr/share/dotnet /usr/local/lib/android $HOME/hostedtoolcache
+#           docker system prune -af --volumes
+
+
+#       # 3) Build the Docker image
+#       - name: Build Docker image
+#         run: docker build -t $ECR_REPO:$IMAGE_TAG .
+
+#       # 4) Configure AWS credentials
+#       - uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           aws-region: ${{ env.AWS_REGION }}
+
+#       # 5) Tag & push the image to ECR
+#       - name: Tag and push to ECR
+#         run: |
+#           aws ecr get-login-password --region $AWS_REGION \
+#             | docker login --username AWS --password-stdin \
+#               ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com
+#           docker tag $ECR_REPO:$IMAGE_TAG \
+#             ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
+#           docker push \
+#             ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
+
+#       # 6) SSH into EC2 & deploy the container
+#       - name: Deploy via SSH
+#         uses: appleboy/ssh-action@v1
+#         with:
+#           host:     ${{ secrets.EC2_HOST }}
+#           username: ec2-user
+#           key:      ${{ secrets.EC2_SSH_KEY }}
+#           script_stop: true
+#           timeout: 240s  # increase from default (60s)
+#           script: |
+#             # 1) Put on your AWS badge
+#             export AWS_ACCESS_KEY_ID='${{ secrets.AWS_ACCESS_KEY_ID }}'
+#             export AWS_SECRET_ACCESS_KEY='${{ secrets.AWS_SECRET_ACCESS_KEY }}'
+#             export AWS_REGION='${{ env.AWS_REGION }}'
+
+#             # 2) Log into ECR so you can pull
+#             aws ecr get-login-password --region $AWS_REGION \
+#               | docker login --username AWS --password-stdin \
+#                 ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com
+
+#             # 3) Pull the new image
+#             docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}
+
+#             # 4) Stop & remove the old container if it’s running
+#             docker stop backend || true
+#             docker rm   backend || true
+
+#             # 5) Run the new container, passing in your Mongo URL
+#             docker run -d --name backend -p 80:8000 \
+#               -e MONGO_URL='${{ secrets.MONGO_URL }}' \
+#               ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}
+
+
+# --------------------------------------------------------------
+# Build image → push to ECR → pull & run on EC2 (port 5000)
+# --------------------------------------------------------------
 name: CI-CD
-on: [push]
+
+on:
+  push:
+    branches: [ "main" ]
 
 env:
-  AWS_REGION: us-east-1
-  ECR_REPO: hiregenius-backend
-  IMAGE_TAG: ${{ github.sha }}
+  AWS_REGION:     ${{ secrets.AWS_REGION }}            # e.g. us-east-1
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}        # 12-digit ID
+  ECR_REPO:       ${{ secrets.ECR_REPO }}              # hiregenius-backend
+  ECR_URI:        ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPO }}
 
 jobs:
-  build-deploy:
+  build-push-deploy:
     runs-on: ubuntu-latest
     steps:
-      # 1) Checkout your code (including Dockerfile at repo root)
+      # 1️⃣ Checkout code
       - uses: actions/checkout@v4
 
-      # 2) Setup Docker Buildx
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Free disk space on runner
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android $HOME/hostedtoolcache
-          docker system prune -af --volumes
-
-
-      # 3) Build the Docker image
-      - name: Build Docker image
-        run: docker build -t $ECR_REPO:$IMAGE_TAG .
-
-      # 4) Configure AWS credentials
+      # 2️⃣ AWS creds
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region:            ${{ env.AWS_REGION }}
 
-      # 5) Tag & push the image to ECR
-      - name: Tag and push to ECR
-        run: |
-          aws ecr get-login-password --region $AWS_REGION \
-            | docker login --username AWS --password-stdin \
-              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com
-          docker tag $ECR_REPO:$IMAGE_TAG \
-            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
-          docker push \
-            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
+      # 3️⃣ ECR login
+      - uses: aws-actions/amazon-ecr-login@v2
 
-      # 6) SSH into EC2 & deploy the container
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
+      # 4️⃣ Build & push :latest and :<SHA>
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.ECR_URI }}:latest
+            ${{ env.ECR_URI }}:${{ github.sha }}
+
+      # 5️⃣ SSH into EC2 and run new image
+      - uses: appleboy/ssh-action@v1
         with:
           host:     ${{ secrets.EC2_HOST }}
-          username: ec2-user
-          key:      ${{ secrets.EC2_SSH_KEY }}
-          script_stop: true
-          timeout: 240s  # increase from default (60s)
+          username: ${{ secrets.EC2_USER }}      # usually ec2-user
+          key:      ${{ secrets.EC2_KEY }}       # private PEM
           script: |
-            # 1) Put on your AWS badge
-            export AWS_ACCESS_KEY_ID='${{ secrets.AWS_ACCESS_KEY_ID }}'
-            export AWS_SECRET_ACCESS_KEY='${{ secrets.AWS_SECRET_ACCESS_KEY }}'
-            export AWS_REGION='${{ env.AWS_REGION }}'
+            AWS_REGION=${{ env.AWS_REGION }}
+            ECR_URI=${{ env.ECR_URI }}
 
-            # 2) Log into ECR so you can pull
-            aws ecr get-login-password --region $AWS_REGION \
-              | docker login --username AWS --password-stdin \
-                ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com
+            # Login & pull new image
+            aws ecr get-login-password --region $AWS_REGION | \
+              docker login --username AWS --password-stdin $ECR_URI
+            docker pull $ECR_URI:latest
 
-            # 3) Pull the new image
-            docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}
-
-            # 4) Stop & remove the old container if it’s running
+            # Replace running container
             docker stop backend || true
             docker rm   backend || true
-
-            # 5) Run the new container, passing in your Mongo URL
-            docker run -d --name backend -p 80:8000 \
-              -e MONGO_URL='${{ secrets.MONGO_URL }}' \
-              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}
+            docker run -d --name backend -p 8000:8000 \
+              -e MONGO_URI='${{ secrets.MONGO_URI }}' \
+              $ECR_URI:latest
