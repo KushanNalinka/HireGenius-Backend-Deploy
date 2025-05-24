@@ -13,6 +13,7 @@ RUN pip install --upgrade pip \
 
 WORKDIR /code
 COPY app ./app
+COPY local_model ./local_model     
 
 EXPOSE 8000
 
