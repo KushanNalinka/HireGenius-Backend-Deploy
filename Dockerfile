@@ -22,7 +22,7 @@ COPY local_model ./local_model
 COPY wsgi.py .
 COPY app.py .
 
-EXPOSE 5000
+EXPOSE 8000
 
 # ---- start with Gunicorn ----
 CMD ["gunicorn", "-b", "0.0.0.0:8000", "wsgi:app"]
