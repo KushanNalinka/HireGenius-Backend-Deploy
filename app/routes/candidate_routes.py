@@ -49,6 +49,173 @@ os.makedirs(UPLOAD_FOLDER_TRANSCRIPTS, exist_ok=True)
 model_path = os.path.join(os.getcwd(), "local_model", "stacked_model_new.joblib")
 model = joblib.load(model_path)
 
+# @candidate_routes.route('/candidates', methods=['POST'])
+# def create_candidate():
+#     data = request.form.to_dict()  # Parse form data
+#     cv = request.files.get('resume')
+#     transcript = request.files.get('transcript')
+
+#     # Save the uploaded CV file
+#     if cv:
+#         cv_path = os.path.join(UPLOAD_FOLDER_CV, cv.filename)
+#         cv.save(cv_path)
+#         data['resume'] = cv.filename
+
+#         # Extract and process CV data
+#         cv_text = extract_text_from_pdf(cv_path)
+#         contact_info = extract_contact_info(cv_text)
+        
+#         # Extract tools and technologies count
+#         no_devops_tools = extract_devops_technologies(cv_text)
+#         no_cloud_technologies = extract_cloud_technologies(cv_text)
+#         no_programming_frameworks = extract_programming_frameworks(cv_text)
+#         no_web_technologies = extract_website_development_technologies(cv_text)
+#         no_programming_languages = extract_programming_languages(cv_text)
+#         no_version_control_technologies = extract_version_control_technologies(cv_text)
+#         no_database_technologies = extract_database_technologies(cv_text)
+#         no_software_development_methodologies = extract_software_development_methodologies(cv_text)
+
+#         # Extract candidate experience details
+#         project_experiences = extract_project_experiences(cv_text)
+#         courses_certifications_achievements = extract_courses_certifications_achievements(cv_text)
+#         work_experience = extract_work_experience(cv_text)
+#         achievements = extract_achievements(cv_text)
+
+#         # Add processed data to the candidate data
+#         data.update({
+#             'extracted_email': contact_info.get('email'),
+#             'extractedgithub': contact_info.get('github'),
+#             'extractedlinkedin': contact_info.get('linkedin'),
+#             'extractednoofprogramminglanguages': no_programming_languages,
+#             'extractednoofwebtechnologies': no_web_technologies,
+#             'extractednoofprogrammingframeworks': no_programming_frameworks,
+#             'extractednoofcloudtechnologies': no_cloud_technologies,
+#             'extractednoofdevopstools': no_devops_tools,
+#             'extractednoofversioncontroltechnologies': no_version_control_technologies,
+#             'extractednoofdatabasetechnologies': no_database_technologies,
+#             'extractednoofsoftwaredevelopmentmethodologies': no_software_development_methodologies,
+#             'project_experiences': project_experiences,
+#             'courses_certifications_achievements': courses_certifications_achievements,
+#             'achievements': achievements,
+#             'work_experience': work_experience,
+#             'cv_text': cv_text
+#         })
+
+#     # Save the uploaded transcript file
+#     if transcript:
+#         transcript_path = os.path.join(UPLOAD_FOLDER_TRANSCRIPTS, transcript.filename)
+#         transcript.save(transcript_path)
+#         data['transcript'] = transcript.filename
+
+#     # Save the structured data to the database
+#     candidate = Candidate.create(data)
+
+#     # Trigger similarity and prediction processing
+#     process_similarity_and_prediction(candidate['_id'])
+
+#     return jsonify(candidate), 201
+
+# def process_similarity_and_prediction(candidate_id):
+#     candidate = Candidate.get_by_id(candidate_id)
+#     if not candidate:
+#         return jsonify({"error": "Candidate not found"}), 404
+
+#     # Extract textual data for similarity calculation
+#     courses_certifications_text = " ".join(
+#         item.get("content", "") if isinstance(item, dict) else item
+#         for item in candidate.get("courses_certifications_achievements", [])
+#     )
+#     work_experience_text = " ".join(candidate.get("work_experience", []))
+#     projects_text = " ".join(candidate.get("project_experiences", []))
+#     achievements_text = " ".join(candidate.get("achievements", []))
+
+#     # Handle missing job data
+#     job_id = candidate.get("jobID")
+#     if not job_id:
+#         return jsonify({"error": "Job ID missing"}), 400
+
+#     job = Job.get_by_id(job_id)
+#     if not job:
+#         return jsonify({"error": "Job not found"}), 404
+
+#     required_skills = job.get("skills", "")
+#     experience = job.get("experience", "")
+#     qualifications = job.get("qualifications", "")
+#     achievements = job.get("duties", "")
+
+#     if not any([qualifications.strip(), required_skills.strip(), experience.strip(), achievements.strip()]):
+#         return jsonify({"error": "Job details missing"}), 400
+
+    
+#     # Calculate similarity scores (converted to percentages)
+#     courses_similarity = round(calculate_similarity(courses_certifications_text, qualifications) * 100, 2)
+#     work_experience_similarity = round(calculate_similarity(work_experience_text, experience) * 100, 2)
+#     projects_similarity = round(calculate_similarity(projects_text, required_skills) * 100, 2)
+#     achievements_similarity = round(calculate_similarity(achievements_text, achievements) * 100, 2)
+
+#     # Count number of tools & technologies
+#     num_of_tools_technologies = sum([
+#         candidate.get("extractednoofprogramminglanguages", 0),
+#         candidate.get("extractednoofwebtechnologies", 0),
+#         candidate.get("extractednoofprogrammingframeworks", 0),
+#         candidate.get("extractednoofcloudtechnologies", 0),
+#         candidate.get("extractednoofdevopstools", 0),
+#         candidate.get("extractednoofversioncontroltechnologies", 0),
+#         candidate.get("extractednoofdatabasetechnologies", 0),
+#         candidate.get("extractednoofsoftwaredevelopmentmethodologies", 0)
+#     ])
+
+#     # Update candidate record with similarity scores
+#     Candidate.update(candidate_id, {
+#         "coursesAndCertificationMatchingSimilarity": courses_similarity,
+#         "workExperienceMatchingSimilarity": work_experience_similarity,
+#         "projectsMatchingSimilarity": projects_similarity,
+#         "achievements_similarity": achievements_similarity,
+#         "num_of_tools_technologies": num_of_tools_technologies
+#     })
+
+#     return jsonify({"message": "Candidate similarity updated"}), 200
+
+# @candidate_routes.route('/candidates/predict/<candidate_id>', methods=['GET'])
+# def predict_matching_percentage(candidate_id):
+#     """Predicts the candidate's matching percentage using an ML model."""
+#     candidate = Candidate.get_by_id(candidate_id)
+#     if not candidate:
+#         return jsonify({"error": "Candidate not found"}), 404
+
+#     input_data = {
+#         "No of Tools and Technologies": candidate.get("num_of_tools_technologies", 0),
+#         "Courses & Certifications Matching": candidate.get("coursesAndCertificationMatchingSimilarity", 0),
+#         "Achievements Matching": candidate.get("achievements_similarity",0),  # Assuming static value for achievements
+#         "Work Experience Matching": candidate.get("workExperienceMatchingSimilarity", 0),
+#         "Projects Matching": candidate.get("projectsMatchingSimilarity", 0)
+#     }
+
+#     input_df = pd.DataFrame([input_data])
+
+#     try:
+#         predicted_matching_percentage = model.predict(input_df)[0]
+#     except Exception as e:
+#         return jsonify({"error": f"Prediction error: {str(e)}"}), 500
+
+#     # Update candidate record with prediction
+#     Candidate.update(candidate_id, {
+#         "predicted_matching_percentage": round(predicted_matching_percentage, 2)
+#     })
+
+#     return jsonify({
+#         "predicted_matching_percentage": round(predicted_matching_percentage, 2)
+#     }), 200
+
+
+
+# @candidate_routes.route('/candidates/predicted_percentage/<candidate_id>', methods=['GET'])
+# def get_predicted_percentage(candidate_id):
+#     candidate = candidates_collection.find_one({"_id": candidate_id}, {"predicted_matching_percentage": 1})
+#     if not candidate:
+#         return jsonify({"error": "Candidate not found"}), 404
+#     return jsonify({"predicted_matching_percentage": candidate.get("predicted_matching_percentage", "N/A")}), 200
+
 @candidate_routes.route('/candidates', methods=['POST'])
 def create_candidate():
     data = request.form.to_dict()  # Parse form data
@@ -96,7 +263,7 @@ def create_candidate():
             'extractednoofsoftwaredevelopmentmethodologies': no_software_development_methodologies,
             'project_experiences': project_experiences,
             'courses_certifications_achievements': courses_certifications_achievements,
-            'achievements': achievements,
+            'extract_achievements': achievements,
             'work_experience': work_experience,
             'cv_text': cv_text
         })
@@ -121,13 +288,13 @@ def process_similarity_and_prediction(candidate_id):
         return jsonify({"error": "Candidate not found"}), 404
 
     # Extract textual data for similarity calculation
-    courses_certifications_text = " ".join(
+    extract_courses_certifications_text = " ".join(
         item.get("content", "") if isinstance(item, dict) else item
         for item in candidate.get("courses_certifications_achievements", [])
     )
-    work_experience_text = " ".join(candidate.get("work_experience", []))
-    projects_text = " ".join(candidate.get("project_experiences", []))
-    achievements_text = " ".join(candidate.get("achievements", []))
+    extract_work_experience_text = " ".join(candidate.get("work_experience", []))
+    extract_projects_text = " ".join(candidate.get("project_experiences", []))
+    extract_achievements_text = " ".join(candidate.get("extract_achievements", []))
 
     # Handle missing job data
     job_id = candidate.get("jobID")
@@ -143,15 +310,13 @@ def process_similarity_and_prediction(candidate_id):
     qualifications = job.get("qualifications", "")
     achievements = job.get("duties", "")
 
+    combined_job_text = " ".join([required_skills, experience, qualifications, achievements])
+    cv_text = candidate.get("cv_text", "")
+
     if not any([qualifications.strip(), required_skills.strip(), experience.strip(), achievements.strip()]):
         return jsonify({"error": "Job details missing"}), 400
-
     
-    # Calculate similarity scores (converted to percentages)
-    courses_similarity = round(calculate_similarity(courses_certifications_text, qualifications) * 100, 2)
-    work_experience_similarity = round(calculate_similarity(work_experience_text, experience) * 100, 2)
-    projects_similarity = round(calculate_similarity(projects_text, required_skills) * 100, 2)
-    achievements_similarity = round(calculate_similarity(achievements_text, achievements) * 100, 2)
+
 
     # Count number of tools & technologies
     num_of_tools_technologies = sum([
@@ -165,13 +330,86 @@ def process_similarity_and_prediction(candidate_id):
         candidate.get("extractednoofsoftwaredevelopmentmethodologies", 0)
     ])
 
+    # ─────────────── Additional Field Extraction as Paragraphs ────────────────
+    entered_employer_choice = candidate.get("employerChoice", "")
+    entered_employer_expectations = candidate.get("employerExpectations", "")
+    entered_message = candidate.get("message", "")
+
+    education_raw = candidate.get("education", [])
+    if isinstance(education_raw, str):
+        try:
+            import json
+            education_list = json.loads(education_raw)
+        except:
+            education_list = []
+    else:
+        education_list = education_raw
+
+    entered_education_paragraph = "\n".join(
+        f"{edu.get('degree', '')} at {edu.get('institute', '')} ({edu.get('year', '')})"
+        for edu in education_list
+    )
+
+    experience_raw = candidate.get("experience", [])
+    if isinstance(experience_raw, str):
+        try:
+            import json
+            experience_list = json.loads(experience_raw)
+        except:
+            experience_list = []
+    else:
+        experience_list = experience_raw
+
+    entered_experience_paragraph = "\n".join(
+        f"{exp.get('title', '')} at {exp.get('company', '')}, from {exp.get('from', '')} to {exp.get('to', '')} in {exp.get('officeLocation', '')}. Description: {exp.get('description', '')}"
+        for exp in experience_list
+    )
+
+    
+    entered_courses_certifications_paragraph = candidate.get("coursesCertifications", "")
+    entered_project_experiences_paragraph = "\n".join(candidate.get("project_experiences", []))
+
+    
+    # Calculate similarity scores (converted to percentages)
+    extract_courses_similarity = round(calculate_similarity(extract_courses_certifications_text, qualifications) * 100, 2)
+    extract_work_experience_similarity = round(calculate_similarity(extract_work_experience_text, experience) * 100, 2)
+    extract_projects_similarity = round(calculate_similarity(extract_projects_text, required_skills) * 100, 2)
+    extract_achievements_similarity = round(calculate_similarity(extract_achievements_text, achievements) * 100, 2)
+
+    extract_cv_similarity = round(calculate_similarity(cv_text, combined_job_text) * 100, 2)
+
+    entered_employer_choice_similarity = round(calculate_similarity(entered_employer_choice, combined_job_text) * 100, 2)
+    entered_employer_expectations_similarity = round(calculate_similarity(entered_employer_expectations, combined_job_text) * 100, 2)
+    entered_message_similarity = round(calculate_similarity(entered_message, combined_job_text) * 100, 2)
+
+   
+    entered_courses_certifications_similarity = round(calculate_similarity(entered_courses_certifications_paragraph,  achievements ) * 100, 2)
+    entered_project_experiences_similarity = round(calculate_similarity(entered_project_experiences_paragraph, experience) * 100, 2)
+    entered_education_similarity = round(calculate_similarity(entered_education_paragraph, qualifications) * 100, 2)
+    entered_experience_similarity = round(calculate_similarity(entered_experience_paragraph, experience) * 100, 2)
+
+
     # Update candidate record with similarity scores
     Candidate.update(candidate_id, {
-        "coursesAndCertificationMatchingSimilarity": courses_similarity,
-        "workExperienceMatchingSimilarity": work_experience_similarity,
-        "projectsMatchingSimilarity": projects_similarity,
-        "achievements_similarity": achievements_similarity,
-        "num_of_tools_technologies": num_of_tools_technologies
+        "extract_coursesAndCertificationMatchingSimilarity": extract_courses_similarity,
+        "extract_workExperienceMatchingSimilarity": extract_work_experience_similarity,
+        "extract_projectsMatchingSimilarity": extract_projects_similarity,
+        "extract_achievements_similarity": extract_achievements_similarity,
+        "extract_num_of_tools_technologies": num_of_tools_technologies,
+
+        "extract_cv_similarity": extract_cv_similarity,
+
+        "entered_employer_choice_similarity": entered_employer_choice_similarity,
+        "entered_employer_expectations_similarity": entered_employer_expectations_similarity,
+        "entered_message_similarity": entered_message_similarity,
+
+
+        # "entered_achievements_similarity": entered_achievements_similarity,
+        "entered_courses_certifications_similarity": entered_courses_certifications_similarity,
+        "entered_project_experiences_similarity": entered_project_experiences_similarity,
+        "entered_education_similarity": entered_education_similarity,
+        "entered_experience_similarity": entered_experience_similarity,
+
     })
 
     return jsonify({"message": "Candidate similarity updated"}), 200
@@ -184,76 +422,87 @@ def predict_matching_percentage(candidate_id):
         return jsonify({"error": "Candidate not found"}), 404
 
     input_data = {
-        "No of Tools and Technologies": candidate.get("num_of_tools_technologies", 0),
-        "Courses & Certifications Matching": candidate.get("coursesAndCertificationMatchingSimilarity", 0),
-        "Achievements Matching": candidate.get("achievements_similarity",0),  # Assuming static value for achievements
-        "Work Experience Matching": candidate.get("workExperienceMatchingSimilarity", 0),
-        "Projects Matching": candidate.get("projectsMatchingSimilarity", 0)
+        "No of Tools and Technologies": candidate.get("extract_num_of_tools_technologies", 0),
+        "Courses & Certifications Matching": candidate.get("extract_coursesAndCertificationMatchingSimilarity", 0),
+        "Achievements Matching": candidate.get("extract_achievements_similarity",0),  # Assuming static value for achievements
+        "Work Experience Matching": candidate.get("extract_workExperienceMatchingSimilarity", 0),
+        "Projects Matching": candidate.get("extract_projectsMatchingSimilarity", 0),
+
     }
 
     input_df = pd.DataFrame([input_data])
 
     try:
-        predicted_matching_percentage = model.predict(input_df)[0]
+        extract_predicted_matching_percentage = model.predict(input_df)[0]
     except Exception as e:
         return jsonify({"error": f"Prediction error: {str(e)}"}), 500
 
     # Update candidate record with prediction
     Candidate.update(candidate_id, {
-        "predicted_matching_percentage": round(predicted_matching_percentage, 2)
+        "extract_predicted_matching_percentage": round(extract_predicted_matching_percentage, 2)
     })
 
     return jsonify({
-        "predicted_matching_percentage": round(predicted_matching_percentage, 2)
+        "extract_predicted_matching_percentage": round(extract_predicted_matching_percentage, 2)
     }), 200
 
 
 
 @candidate_routes.route('/candidates/predicted_percentage/<candidate_id>', methods=['GET'])
 def get_predicted_percentage(candidate_id):
-    candidate = candidates_collection.find_one({"_id": candidate_id}, {"predicted_matching_percentage": 1})
+    candidate = candidates_collection.find_one({"_id": candidate_id}, {"extract_predicted_matching_percentage": 1})
     if not candidate:
         return jsonify({"error": "Candidate not found"}), 404
-    return jsonify({"predicted_matching_percentage": candidate.get("predicted_matching_percentage", "N/A")}), 200
+    return jsonify({"extract_predicted_matching_percentage": candidate.get("extract_predicted_matching_percentage", "N/A")}), 200
 
 
-
-
-def process_candidate_data(candidate_id):
-    # Fetch the candidate data from the database
+@candidate_routes.route('/candidates/entered/predict/<candidate_id>', methods=['GET'])
+def entered_predict_matching_percentage(candidate_id):
+    """Predicts the candidate's matching percentage using an ML model."""
     candidate = Candidate.get_by_id(candidate_id)
     if not candidate:
-        return
+        return jsonify({"error": "Candidate not found"}), 404
 
-    cv_text = candidate.get('cv_text', '')
-    if not cv_text:
-        return
+    input_data = {
+        "No of Tools and Technologies": candidate.get("extract_num_of_tools_technologies", 0),
+        "Courses & Certifications Matching": candidate.get("entered_courses_certifications_similarity", 0),
+        "Achievements Matching": candidate.get("entered_education_similarity",0),  # Assuming static value for achievements
+        "Work Experience Matching": candidate.get("entered_experience_similarity", 0),
+        "Projects Matching": candidate.get("extract_projectsMatchingSimilarity", 0),
 
-    # Perform soft skills extraction and similarity calculation
-    soft_skills = extract_soft_skills(cv_text)
-    soft_skills_text = " ".join(skill[0] for skill in soft_skills)
-    similarity_score = calculate_similarity(soft_skills_text, cv_text)
-
-    # Perform technical skills extraction
-    technical_skills = extract_technical_skills_from_projects(cv_text)
-    skill_counts = Counter(technical_skills)
-
-    # Generate and store the technical skills bar chart as an image
-    chart_image_base64 = generate_and_store_skills_chart(skill_counts)
-
-    # Update the candidate record in the database
-    update_data = {
-        'soft_skills': [{"skill": skill[0], "count": skill[1]} for skill in soft_skills],
-        'similarity_score': float(similarity_score),
-         'technical_skills': [{"skill": skill, "count": count} for skill, count in skill_counts.items()],
-        'skills_chart_image': chart_image_base64  # Store the base64-encoded image
     }
-    Candidate.update(candidate_id, update_data)
-    
-@candidate_routes.route('/candidates/<candidateID>/process', methods=['POST'])
-def process_candidate(candidateID):
-    process_candidate_data(candidateID)
-    return jsonify({"message": "Candidate processing triggered successfully"}), 200
+
+    input_df = pd.DataFrame([input_data])
+
+    try:
+        entered_predicted_matching_percentage = model.predict(input_df)[0]
+    except Exception as e:
+        return jsonify({"error": f"Prediction error: {str(e)}"}), 500
+
+    # Update candidate record with prediction
+    Candidate.update(candidate_id, {
+        "entered_predicted_matching_percentage": round(entered_predicted_matching_percentage, 2)
+    })
+
+    return jsonify({
+        "entered_predicted_matching_percentage": round(entered_predicted_matching_percentage, 2)
+    }), 200
+
+
+
+@candidate_routes.route('/candidates/entered/predicted_percentage/<candidate_id>', methods=['GET'])
+def get_entered_predicted_percentage(candidate_id):
+    candidate = candidates_collection.find_one({"_id": candidate_id}, {"entered_predicted_matching_percentage": 1})
+    if not candidate:
+        return jsonify({"error": "Candidate not found"}), 404
+    return jsonify({"entered_predicted_matching_percentage": candidate.get("entered_predicted_matching_percentage", "N/A")}), 200
+
+
+
+
+
+
+
 
 
     
