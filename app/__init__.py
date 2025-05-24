@@ -118,3 +118,4 @@ def create_app():
     app.register_blueprint(candidate_routes)
 
     return app
+#new uoncommented code
