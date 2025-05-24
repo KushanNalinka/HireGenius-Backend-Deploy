@@ -41,31 +41,79 @@
 
 #     return app
 
+# import os
+# from flask import Flask
+# from flask_cors import CORS
+# from pymongo import MongoClient
+
+# # shared db object
+# client = None
+# db     = None
+
+# def create_app():
+#     global client, db
+
+#     # 1) Flask + CORS
+#     app = Flask(__name__)
+#     CORS(app, resources={r"/*": {"origins": "*"}})
+
+#     # 2) MongoDB: use the URL from the environment
+#     mongo_url = os.environ.get("MONGO_URL")
+#     client    = MongoClient(mongo_url)
+#     db        = client["ResumeProjectDB"]
+
+#     # 3) Register your routes
+#     from app.routes.job_routes       import job_routes
+#     from app.routes.candidate_routes import candidate_routes
+
+#     app.register_blueprint(job_routes)
+#     app.register_blueprint(candidate_routes)
+
+#     return app
+
 import os
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 from pymongo import MongoClient
+from sentence_transformers import SentenceTransformer
+from pathlib import Path
+from dotenv import load_dotenv
 
-# shared db object
+# ─── load MiniLM once ───
+model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+
+# ---------- load .env when running locally ----------
+env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(env_path, override=False)   # ignored if the file is absent
+
+# shared DB handle
 client = None
 db     = None
 
 def create_app():
     global client, db
-
-    # 1) Flask + CORS
     app = Flask(__name__)
-    CORS(app, resources={r"/*": {"origins": "*"}})
+    CORS(app)
 
-    # 2) MongoDB: use the URL from the environment
-    mongo_url = os.environ.get("MONGO_URL")
-    client    = MongoClient(mongo_url)
-    db        = client["ResumeProjectDB"]
+    # connect to Mongo using the secret
+    mongo_uri = os.getenv("MONGO_URI")
+    if not mongo_uri:
+        raise RuntimeError("MONGO_URI not set. Add it to .env (local) "
+                           "or pass it as an environment variable in production.")
 
-    # 3) Register your routes
+    client = MongoClient(mongo_uri)
+    db     = client["ResearchProjectNewDB"]
+
+    # example MiniLM route:
+    @app.route("/encode", methods=["POST"])
+    def encode():
+        text = request.json["text"]
+        vec  = model.encode(text).tolist()
+        return {"embedding": vec}
+
+    # register your existing blueprints
     from app.routes.job_routes       import job_routes
     from app.routes.candidate_routes import candidate_routes
-
     app.register_blueprint(job_routes)
     app.register_blueprint(candidate_routes)
 

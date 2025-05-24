@@ -2,7 +2,7 @@ import PyPDF2
 import spacy
 import re
 from collections import Counter
-from transformers import pipeline
+
 import matplotlib.pyplot as plt
 import base64
 from io import BytesIO
@@ -16,7 +16,7 @@ matplotlib.use('Agg')  # Use this to prevent Tkinter GUI issues
 nlp = spacy.load("en_core_web_sm")
 
 
-classifier = pipeline("zero-shot-classification", model="local_model", tokenizer="local_model")
+
 
 
 def extract_text_from_pdf(pdf_path):
@@ -39,21 +39,7 @@ def extract_contact_info(text):
     }
 
 
-def extract_soft_skills(cv_text):
-    soft_skills_list = [
-        'communication', 'teamwork', 'leadership', 'problem-solving', 'adaptability',
-        'time management', 'critical thinking', 'collaboration', 'creativity',
-        'decision-making', 'empathy', 'negotiation', 'conflict resolution',
-        'responsibility', 'accountability'
-    ]
-    soft_skills_found = []
-    doc = nlp(cv_text)
-    for sent in doc.sents:
-        results = classifier(sent.text, candidate_labels=soft_skills_list, multi_label=True)
-        for label, score in zip(results['labels'], results['scores']):
-            if score >= 0.6 and label not in soft_skills_found:
-                soft_skills_found.append(label)
-    return Counter(soft_skills_found).most_common()
+
 
 # Define dictionaries for technical skills
 skills_keywords = {
@@ -311,82 +297,9 @@ def extract_software_development_methodologies(cv_text):
     return len(list(dict.fromkeys(found_methodologies)))
 
 
-def extract_project_experiences(cv_text):
-    projects = []
-    project_keywords = ['project', 'technologies', 'tools', 'description', 'responsibilities']
 
-    lines = cv_text.split('\n')
-    current_project = None
 
-    for line in lines:
-        line_lower = line.lower().strip()
-        if any(keyword in line_lower for keyword in project_keywords) and line:
-            if current_project:
-                projects.append(current_project.strip())
-            current_project = line.strip()
-        elif current_project:
-            current_project += " " + line.strip()
 
-    if current_project:
-        projects.append(current_project.strip())
-
-    filtered_projects = [project for project in projects if len(project.split()) > 5]
-
-    return filtered_projects
-
-def extract_courses_certifications_achievements(cv_text):
-    sections = []
-    
-    course_keywords = ['course', 'certification', 'training', 'online course', 'workshop']
-    achievement_keywords = ['achievement', 'award', 'recognition', 'honor', 'milestone']
-    
-    lines = cv_text.split('\n')
-    current_section = None
-    current_section_type = None
-
-    for line in lines:
-        line_lower = line.lower().strip()
-
-        if any(keyword in line_lower for keyword in course_keywords):
-            if current_section:
-                sections.append({'type': current_section_type, 'content': current_section.strip()})
-            current_section = line.strip()
-            current_section_type = 'Courses/Certifications'
-        elif any(keyword in line_lower for keyword in achievement_keywords):
-            if current_section:
-                sections.append({'type': current_section_type, 'content': current_section.strip()})
-            current_section = line.strip()
-            current_section_type = 'Achievements'
-        elif current_section:
-            current_section += " " + line.strip()
-
-    if current_section:
-        sections.append({'type': current_section_type, 'content': current_section.strip()})
-    
-    return sections
-
-def extract_work_experience(cv_text):
-    work_experience = []
-    
-    work_experience_keywords = ['work experience', 'employment history', 'professional experience', 'job', 'company', 'position', 'role']
-    
-    lines = cv_text.split('\n')
-    current_experience = None
-
-    for line in lines:
-        line_lower = line.lower().strip()
-        
-        if any(keyword in line_lower for keyword in work_experience_keywords) and line:
-            if current_experience:
-                work_experience.append(current_experience.strip())
-            current_experience = line.strip()
-        elif current_experience:
-            current_experience += " " + line.strip()
-
-    if current_experience:
-        work_experience.append(current_experience.strip())
-
-    return work_experience
 
 
 
@@ -452,30 +365,420 @@ def generate_all_charts(cv_text):
     
     return charts
 
-def extract_achievements(cv_text):
-    # Common keywords indicating achievements
-    achievement_keywords = [
-        "achievement", "accomplishment", "award", "recognition", "honor", 
-        "certification", "promotion", "patent", "competition", "distinction", 
-        "winner", "finalist", "ranked", "scholarship", "grant", "published", 
-        "best employee", "top performer", "excellence", "successfully led", 
-        "initiated", "implemented"
-    ]
 
-    # Use regex to find sections with achievement-related headings
-    achievement_sections = re.findall(r"(?i)(?:achievements?|awards?|recognitions?|accomplishments?)\s*:\s*(.*?)\n\n", cv_text, re.DOTALL)
 
-    # NLP Processing to analyze sentences and extract relevant ones
+import re
+from typing import List, Dict
+import spacy
+
+# ─────────────────────────────────────────────────────────────
+#  Helpers
+# ─────────────────────────────────────────────────────────────
+nlp = spacy.load("en_core_web_sm")
+
+# ALL high-level sections we might meet
+_SECTION_BREAKERS = {
+    # core sections
+    "profile", "summary", "objective",
+    "professional experience", "work experience", "experience", "employment",
+    "projects", "technical projects", "side projects", "academic projects", "project experience",
+    "research projects", "industry based project",
+    "courses", "courses & certifications", "certifications", "training",
+    "achievements", "awards", "honors", "accomplishments",
+    "skills", "technical skills", "languages", "employment history","other experience",
+    "education",
+    # extras
+    "publications", "volunteering", "volunteer",
+    "interests", "hobbies",
+    "references", "referees", "contact", "extra-curricular"
+}
+
+def _is_section_break(line: str) -> bool:
+    """Return True if the line looks like a high-level heading."""
+    l = line.strip()
+    if len(l) > 70:
+        return False
+    plain = re.sub(r"[^A-Za-z &]", "", l).lower().strip()
+    return plain in _SECTION_BREAKERS or l.isupper()
+
+def _dedupe(items: List[str]) -> List[str]:
+    seen, out = set(), []
+    for itm in items:
+        key = re.sub(r"\s+", " ", itm.strip().lower())
+        if key and key not in seen:
+            seen.add(key)
+            out.append(itm.strip())
+    return out
+
+def _capture_by_heading(cv_text: str,
+                        heading_keywords: List[str],
+                        min_words: int = 4) -> List[str]:
+    """
+    Grab *every* section whose heading contains any keyword.
+    """
+    lines = cv_text.splitlines()
+    blocks, current, capture = [], [], False
+
+    for raw in lines:
+        line = raw.rstrip()
+        lower = line.lower().strip()
+
+        # Start a wanted section?
+        if any(k in lower for k in heading_keywords):
+            if current:
+                blocks.append("\n".join(current).strip())
+                current = []
+            capture = True
+            continue
+
+        # End of current section?
+        if capture and (_is_section_break(line) or not line.strip()):
+            if current:
+                blocks.append("\n".join(current).strip())
+                current = []
+            capture = False
+            continue
+
+        if capture:
+            current.append(line)
+
+    if current:
+        blocks.append("\n".join(current).strip())
+
+    return [b for b in blocks if len(b.split()) >= min_words]
+
+
+
+def _find_bullets_matching(cv_text: str,
+                           include_kw: List[str],
+                           exclude_kw: List[str] = None,
+                           min_words: int = 4) -> List[str]:
+    """
+    Look for single-line bullets that contain *any* include_kw and *no* exclude_kw.
+    """
+    if exclude_kw is None:
+        exclude_kw = []
+    lines, hits, i = cv_text.splitlines(), [], 0
+
+    # pre-compile for speed
+    inc_re = re.compile("|".join([re.escape(k.lower()) for k in include_kw]))
+    exc_re = re.compile("|".join([re.escape(k.lower()) for k in exclude_kw])) if exclude_kw else None
+
+    while i < len(lines):
+        line_raw = lines[i]
+        line = line_raw.lstrip("•–—-•* ").strip()           # drop leading bullet/dash
+        lower = line.lower()
+
+        if (inc_re.search(lower) and not (exc_re and exc_re.search(lower))):
+            block = [line.strip()]
+            j = i + 1
+            while (j < len(lines) and lines[j].strip()
+                   and not _is_section_break(lines[j])
+                   and not re.match(r"^[\u2022•\-–—*]", lines[j].lstrip())):
+                block.append(lines[j].strip())
+                j += 1
+            if len(" ".join(block).split()) >= min_words:
+                hits.append(" ".join(block))
+            i = j
+        else:
+            i += 1
+    return hits
+
+
+
+
+# ─────────────────────────────────────────────────────────────
+# Split a long Experience block into per-job chunks
+# ─────────────────────────────────────────────────────────────
+
+# Accept headings of the form:
+# • Senior Software Engineer – Payments – Square
+#   Trainee Software Engineer | Fortunaglobal | Aug 2019 – Feb 2020
+#   Software Engineering Intern at WSO2
+_JOB_HEADER = re.compile(
+    r"""^(?:[\u2022•\-–—*]\s*)?                 # optional bullet
+        [A-Z][\w &/().+'\-]{2,}                # role (starts with cap)
+        (?:\s+(?:–|—|\-|‒|–|—| at | \| ))      # separator
+        .+?$                                   # company / team text
+    """,
+    re.VERBOSE
+)
+
+def _split_jobs_in_block(block: str) -> List[str]:
+    """
+    Inside one long Professional Experience block, slice it
+    into separate jobs by detecting header lines.
+    """
+    lines = block.splitlines()
+    jobs, current = [], []
+
+    for line in lines:
+        if _JOB_HEADER.match(line.strip()):
+            if current:
+                jobs.append("\n".join(current).strip())
+                current = []
+        current.append(line)
+    if current:
+        jobs.append("\n".join(current).strip())
+
+    return jobs
+
+# ─────────────────────────────────────────────────────────────
+# Public API
+# ─────────────────────────────────────────────────────────────
+
+def extract_work_experience(cv_text: str) -> List[str]:
+    # 1. Capture every Experience-type section
+    raw_blocks = _capture_by_heading(
+        cv_text,
+        ["professional experience", "work experience", "experience",
+         "employment", "employment history", "career history"]
+    )
+
+    # 2. Split those blocks into distinct jobs
+    jobs = []
+    for blk in raw_blocks:
+        jobs.extend(_split_jobs_in_block(blk))
+
+    # 3. Find any stray job bullets elsewhere
+    date_pattern = r"\b(20\d{2}|19\d{2})"
+
+    extra_bullets = _find_bullets_matching(
+        cv_text,
+        include_kw=[
+            # roles & levels
+            "engineer", "developer", "programmer", "architect", "analyst",
+            "consultant", "scientist", "technician", "administrator",
+            "specialist", "lead", "senior", "principal", "staff",
+            "associate", "intern", "trainee", "co-founder", "founder",
+            "lecturer", "mentor", "manager", "director",
+            "undergraduate trainee", 
+            "software engineer intern",
+            "software engineering", "software engineer","associate software engineer",
+
+            "principal software engineer","techlead","senior software engineer",
+            "software architect","senior software developer","junior software engineer","backend engineer","mobile app developer",
+            " lead software engineer","full stack developer",
+
+            # domains
+            "full-stack", "backend", "front-end", "devops", "mobile",
+            "data", "machine learning", "ai", "blockchain", "cloud"
+        ],
+        exclude_kw=[
+            "course", "courses","project", "projects"," tools and technologies", "tools", "tools used","technologies", "technologies used",
+            "certificate", "certification", "training", "workshop","technial projects",
+            "award","Certified", "achievement", "honor", "hobbies", "interests",
+            "objective", "summary", "profile", "skills", "languages",
+            "volunteer", "volunteering", "publication", "publications",
+            "reference", "referees", "contact", "competition", "club", "university",
+            "school", "college", "degree"
+        ]
+    )
+
+    # Keep only bullets that reference a calendar year (strong signal of a job)
+    extra_bullets = [b for b in extra_bullets if re.search(date_pattern, b)]
+
+    return _dedupe(jobs + extra_bullets)
+
+
+# ─────────────────────────────────────────────────────────────
+# 2. Courses & Certifications  (unchanged)
+# ─────────────────────────────────────────────────────────────
+def extract_courses_certifications_achievements(cv_text: str) -> List[Dict[str, str]]:
+    heading_blocks = _capture_by_heading(
+        cv_text,
+        ["certification", "course", "training", "workshop", "license"]
+    )
+    bullet_blocks = _find_bullets_matching(
+        cv_text,
+        include_kw=["certificate", "courses & certifications", "certification", "certified",
+                    "course", "training", "workshop", "bootcamp", "practitioner"],
+        exclude_kw=["award", "achievement", "honor", "Excellence", "project", "experience","projects", "tools and technologies", "tools", "work experience","internship", "other experience", "references", "referee", "contact", "about", "Senior Software Engineer", "Software Engineer"]
+    )
+    combined = _dedupe(heading_blocks + bullet_blocks)
+    return [{"type": "Courses/Certifications", "content": item} for item in combined]
+
+
+
+
+
+# ─────────────────────────────────────────────────────────────
+#  KEYWORD TABLES — ***ONLY PARTS THAT CHANGED*** 
+#  (expanded to cover every phrase visible in your screenshots)
+# ─────────────────────────────────────────────────────────────
+
+_PROJECT_KEYWORDS = (
+    # generic
+    "project", "projects", "prototype", "system", "application", "app",
+    "platform", "framework", "engine", "tool", "solution", "portal",
+    "service", "microservice", "component", "module",
+    "optimizer", "replicator", "detector", "assistant",
+    # domain-specific additions from samples
+    "website", "web site", "web app", "mobile application", "mobile app",
+    "e-commerce", "inventory", "management system", "monitoring",
+    "booking", "timetable", "gateway", "calculator", "language",
+    "compiler", "etl", "iot", "ai", "device", "robot", "sensor",
+    "middleware", "chatbot", "data lake", "analytics", "dashboard"
+)
+
+_ACTION_VERBS = (
+    # core
+    "built", "developed", "created", "implemented", "engineered", "designed",
+    "crafted", "modernised", "constructed", "delivered", "refactored",
+    "automated", "optimised", "prototyped", "integrated", "migrated",
+    # extra verbs that appeared in samples
+    "architected", "contributed", "launched", "deployed",
+    "led", "rolled", "designed", "assembled", "customised"
+)
+
+_EXCLUDE_RE = re.compile(
+    r"(email|phone|address|linkedin|referee?s?|references?|"
+    r"\bcourses?\b|\bcertifications?\b|\bawards?\b|\bachievements?\b|"
+    r"\bexperience\b|https?://|@\w+)",
+    re.I
+)
+
+_PROJECT_HEADINGS = [
+    "project", "projects", "project experience",
+    "technical project", "technical projects",
+    "academic project", "academic projects",
+    "industry based project", "industry based projects",
+    "research project", "research projects",
+    "side project", "side projects", "other projects"
+]
+
+def _word_found(text: str, words) -> bool:
+    return any(re.search(rf"\b{re.escape(w)}\b", text, re.I) for w in words)
+
+# ─────────────────────────────────────────────────────────────
+#  Loose-bullet scanner
+# ─────────────────────────────────────────────────────────────
+def _find_project_bullets(cv_text: str,
+                          min_words: int = 5) -> List[str]:
+    lines = cv_text.splitlines()
+    bullets, i = [], 0
+
+    while i < len(lines):
+        line = lines[i].strip()
+        if (_word_found(line, _PROJECT_KEYWORDS) and
+                not _EXCLUDE_RE.search(line)):
+            block = [line]
+            j = i + 1
+            while (j < len(lines) and lines[j].strip()
+                   and not _is_section_break(lines[j])
+                   and not re.match(r"^[\u2022•\-–]", lines[j].lstrip())):
+                block.append(lines[j].strip())
+                j += 1
+            joined = " ".join(block)
+            if (len(joined.split()) >= min_words and
+                    _word_found(joined, _ACTION_VERBS)):
+                bullets.append(joined)
+            i = j
+        else:
+            i += 1
+    return bullets
+
+
+
+def extract_project_experiences(cv_text: str) -> List[str]:
+    """
+    Return only project descriptions (academic, industry, hobby).
+    Steps:
+      1. Capture blocks under headings that match any of _PROJECT_HEADINGS.
+      2. Find stray project bullets anywhere in the text.
+      3. Split each heading block on:
+         • blank lines, or
+         • lines beginning with “Technologies:”, “Technologies used:”, or “Tools and Technologies:”
+      4. Deduplicate and return.
+    """
+    # a. Heading-based capture
+    heading_blocks = _capture_by_heading(cv_text, _PROJECT_HEADINGS)
+
+    # b. Bullet capture
+    bullet_blocks = _find_project_bullets(cv_text)
+
+    # c. Split big heading blocks into individual project items
+    project_items = []
+    split_pattern = (
+        r"(?:\n\s*\n)"                            # blank line
+        r"|(?:\n\s*(?:Technologies"
+           r"|Technologies used"
+           r"|Tools and Technologies):)"          # any of those labels + colon
+    )
+    for blk in heading_blocks:
+        for para in re.split(split_pattern, blk, flags=re.IGNORECASE):
+            t = para.strip()
+            if (len(t.split()) >= 5
+                    and _word_found(t, _PROJECT_KEYWORDS)
+                    and not _EXCLUDE_RE.search(t)):
+                project_items.append(t)
+
+    # d. Merge and remove duplicates
+    return _dedupe(project_items + bullet_blocks)
+
+# ─────────────────────────────────────────────────────────────
+#  Achievements extractor (unchanged)
+# ─────────────────────────────────────────────────────────────
+def extract_achievements(cv_text: str) -> List[str]:
+    heading_blocks = _capture_by_heading(
+        cv_text,
+        heading_keywords=["achievement", "awards", "honor",
+                          "accomplishment", "distinction"]
+    )
+
+    ach_kw = {
+        "achievement", "accomplishment", "award", "recognition", "honor",
+        "winner", "finalist", "ranked", "scholarship", "grant", "medal",
+        "best", "top", "prize", "distinction"
+    }
+
     doc = nlp(cv_text)
-    achievements = []
-    
+    sent_hits = [s.text.strip() for s in doc.sents
+                 if len(s.text.strip()) >= 15 and
+                 any(k in s.text.lower() for k in ach_kw)]
+
+    combined = _dedupe(heading_blocks + sent_hits)
+
+    # prune phrases like “Best practices …”
+    return [s for s in combined
+            if not re.search(r"\b(best practices?|job|project|experience)\b", s, re.I)]
+
+
+
+
+
+# ─────────────────────────────────────────────────────────────
+# 4. Achievements / Awards
+# ─────────────────────────────────────────────────────────────
+def extract_achievements(cv_text: str) -> List[str]:
+    """
+    Returns list[str] of notable awards / honors.
+    """
+    heading_blocks = _capture_by_heading(
+        cv_text,
+        heading_keywords=["achievement", "awards", "honor", "accomplishment", "distinction"]
+    )
+
+    # sentence-level scan using a curated keyword list
+    achievement_keywords = {
+        "achievement", "accomplishment", "award", "recognition", "honor",
+        "winner", "finalist", "ranked", "scholarship", "grant", "medal",
+        "best", "top", "prize", "distinction"
+    }
+
+    doc = nlp(cv_text)
+    sent_hits = []
     for sent in doc.sents:
-        sentence_text = sent.text.strip()
-        # Check if the sentence contains achievement-related keywords
-        if any(keyword in sentence_text.lower() for keyword in achievement_keywords):
-            achievements.append(sentence_text)
+        s = sent.text.strip()
+        if len(s) < 15:
+            continue
+        lower = s.lower()
+        if any(k in lower for k in achievement_keywords):
+            sent_hits.append(s)
 
-    # Combine regex-extracted and NLP-extracted achievements
-    achievements = list(set(achievements + achievement_sections))
+    combined = _dedupe(heading_blocks + sent_hits)
 
-    return achievements
+    # final filter to avoid false positives like “Best practices”
+    final = [s for s in combined
+             if not re.search(r"\b(best practices?|job|project|experience)\b", s, re.I)]
+    return final

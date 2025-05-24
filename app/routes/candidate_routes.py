@@ -8,7 +8,7 @@ import pandas as pd
 from app.cv_processing import (
     extract_text_from_pdf,
       extract_contact_info, 
-      extract_soft_skills, 
+      
       extract_technical_skills_from_projects, 
       generate_and_store_skills_chart,
       extract_programming_languages,
